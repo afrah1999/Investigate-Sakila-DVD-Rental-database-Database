@@ -1,0 +1,106 @@
+
+/*Query 1-query used for first insight*/
+
+SELECT category_name,
+       Sum(rental_count) count
+FROM   (SELECT f.title  film_title,
+               c.NAME   category_name,
+               Count(*) AS rental_count
+        FROM   rental r
+               JOIN inventory i
+                 ON r.inventory_id = i.inventory_id
+               JOIN film f
+                 ON i.film_id = f.film_id
+               JOIN film_category fc
+                 ON fc.film_id = f.film_id
+               JOIN category c
+                 ON c.category_id = fc.category_id
+        WHERE  c.NAME IN ( 'Animation', 'Children', 'Classics', 'Comedy',
+                           'Family', 'Music' )
+        GROUP  BY 1,
+                  2
+        ORDER  BY 2,
+                  1)sub
+GROUP  BY 1; 
+
+
+/*Query 2-query used for second insight*/
+
+SELECT Date_trunc('month', r.rental_date) AS Rental_Year_month,
+       s.store_id                         Store_ID,
+       Count(r.rental_id)                 AS rental_count
+FROM   store s
+       JOIN staff st
+         ON s.store_id = st.store_id
+       JOIN rental r
+         ON st.staff_id = r.staff_id
+GROUP  BY 1,
+          2
+ORDER  BY 3 DESC; 
+
+
+/*Query 3-query used for third insight*/
+
+WITH top_pay AS
+(
+         SELECT   c.customer_id,
+                  c.first_name
+                           || ' '
+                           || c.last_name AS full_name,
+                  Sum(p.amount)              total_payment
+         FROM     customer c
+         JOIN     payment p
+         ON       c.customer_id= p.customer_id
+         GROUP BY 1,
+                  2
+         ORDER BY 3 DESC limit 10)
+SELECT   Date_trunc('month',p.payment_date) pay_mon ,
+         tp.full_name,
+         Count(*)      count_payment,
+         Sum(p.amount) amount
+FROM     top_pay tp
+JOIN     customer c
+ON       c.customer_id=tp.customer_id
+JOIN     payment p
+ON       p.customer_id=c.customer_id
+WHERE    Date_part('year',payment_date ) ='2007'
+GROUP BY 1,
+         2
+ORDER BY 2,
+         1;
+
+/*Query 4-query used for fourth insight*/
+
+WITH top_pay AS
+(
+         SELECT   c.customer_id,
+                  c.first_name
+                           || ' '
+                           || c.last_name AS full_name,
+                  Sum(p.amount)              total_payment
+         FROM     customer c
+         JOIN     payment p
+         ON       c.customer_id= p.customer_id
+         GROUP BY 1,
+                  2
+         ORDER BY 3 DESC limit 10)
+SELECT   pay_mon,
+         full_name,
+         Lag(sum_amount) OVER (ORDER BY full_name)            AS previeos_payment,
+         sum_amount-Lag(sum_amount) OVER (ORDER BY full_name) AS difference
+FROM     (
+                  SELECT   Date_trunc('month',p.payment_date) pay_mon ,
+                           tp.full_name,
+                           Count(*)      count_payment,
+                           Sum(p.amount) sum_amount
+                  FROM     top_pay tp
+                  JOIN     customer c
+                  ON       c.customer_id=tp.customer_id
+                  JOIN     payment p
+                  ON       p.customer_id=c.customer_id
+                  WHERE    Date_part('year',payment_date )='2007'
+                  GROUP BY 1,
+                           2
+                  ORDER BY 2,
+                           1)sub;
+
